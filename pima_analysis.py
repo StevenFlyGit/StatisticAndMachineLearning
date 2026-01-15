@@ -43,8 +43,19 @@ def replace_zeros_with_nan(df: pd.DataFrame, columns) -> pd.DataFrame:
     return df
 
 
-def build_pipeline(model, scale: bool) -> Pipeline:
-    steps = [("imputer", SimpleImputer(strategy="median"))]
+def build_pipeline(model, scale: bool, impute_strategy: str = "median") -> Pipeline:
+    """
+    构建机器学习处理管道
+    
+    Args:
+        model: 机器学习模型
+        scale: 是否需要标准化
+        impute_strategy: 缺失值填充策略，可选 "mean" 或 "median"（默认）
+    
+    Returns:
+        配置好的 Pipeline 对象
+    """
+    steps = [("imputer", SimpleImputer(strategy=impute_strategy))]
     if scale:
         steps.append(("scaler", StandardScaler()))
     steps.append(("model", model))
@@ -93,6 +104,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Pima Indians Diabetes ML analysis")
     parser.add_argument("--data", default="data/diabetes.csv", help="Path to diabetes.csv")
     parser.add_argument("--save", action="store_true", help="Save best model to models/")
+    parser.add_argument(
+        "--impute-strategy",
+        choices=["mean", "median"],
+        default="median",
+        help="Missing value imputation strategy: 'mean' or 'median' (default: median)"
+    )
     args = parser.parse_args()
 
     df = load_data(args.data)
@@ -138,7 +155,7 @@ def main() -> None:
 
     results = []
     for name, (model, scale) in models.items():
-        pipeline = build_pipeline(model, scale)
+        pipeline = build_pipeline(model, scale, args.impute_strategy)
         cross_validate_auc(name, pipeline, x, y)
         metrics = evaluate_model(name, pipeline, x_train, x_test, y_train, y_test)
         results.append(metrics)
@@ -157,7 +174,7 @@ def main() -> None:
         os.makedirs("models", exist_ok=True)
         best_name = best["model"]
         best_model, best_scale = models[best_name]
-        best_pipeline = build_pipeline(best_model, best_scale)
+        best_pipeline = build_pipeline(best_model, best_scale, args.impute_strategy)
         best_pipeline.fit(x, y)
         import joblib
 
