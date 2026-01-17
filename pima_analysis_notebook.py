@@ -1,6 +1,8 @@
-import os
+﻿import os
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
@@ -88,6 +90,56 @@ def cross_validate_auc(name: str, pipeline: Pipeline, x, y) -> None:
         print(f"{name} CV AUC failed: {exc}")
 
 
+def plot_basic_eda(df: pd.DataFrame, target_col: str) -> None:
+    sns.set_theme(style="whitegrid")
+    numeric = df.select_dtypes(include=[np.number])
+
+    if target_col in df.columns:
+        fig, ax = plt.subplots(figsize=(5, 4))
+        sns.countplot(x=target_col, data=df, ax=ax)
+        ax.set_title("Target distribution")
+        fig.tight_layout()
+        plt.show()
+
+    missing = df.isna().sum()
+    missing = missing[missing > 0]
+    if not missing.empty:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        missing.sort_values(ascending=False).plot(kind="bar", ax=ax)
+        ax.set_title("Missing values per column")
+        fig.tight_layout()
+        plt.show()
+
+    feature_cols = [c for c in numeric.columns if c != target_col]
+    if feature_cols:
+        df[feature_cols].hist(bins=20, figsize=(12, 8))
+        plt.tight_layout()
+        plt.show()
+
+    if feature_cols and target_col in df.columns:
+        ncols = 3
+        nrows = int(np.ceil(len(feature_cols) / ncols))
+        fig, axes = plt.subplots(nrows, ncols, figsize=(ncols * 4, nrows * 3), squeeze=False)
+        for idx, col in enumerate(feature_cols):
+            row = idx // ncols
+            col_idx = idx % ncols
+            sns.boxplot(x=target_col, y=col, data=df, ax=axes[row][col_idx])
+        for idx in range(len(feature_cols), nrows * ncols):
+            row = idx // ncols
+            col_idx = idx % ncols
+            axes[row][col_idx].axis("off")
+        fig.tight_layout()
+        plt.show()
+
+    if numeric.shape[1] > 1:
+        corr = numeric.corr()
+        fig, ax = plt.subplots(figsize=(8, 6))
+        sns.heatmap(corr, cmap="coolwarm", center=0, ax=ax)
+        ax.set_title("Feature correlation")
+        fig.tight_layout()
+        plt.show()
+
+
 # Load and inspect
 _df = load_data(DATA_PATH)
 print("Shape:", _df.shape)
@@ -103,6 +155,8 @@ if _zero_counts:
 _df = replace_zeros_with_nan(_df, ZERO_AS_MISSING)
 _missing = _df.isna().sum()
 print("Missing values after replacement:\n", _missing[_missing > 0])
+
+plot_basic_eda(_df, TARGET_COL)
 
 if TARGET_COL not in _df.columns:
     raise ValueError(f"Missing target column: {TARGET_COL}")

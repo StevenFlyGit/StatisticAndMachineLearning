@@ -1,9 +1,11 @@
-import argparse
+﻿import argparse
 import os
 from typing import Dict, Tuple
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
 from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
@@ -100,6 +102,79 @@ def cross_validate_auc(name: str, pipeline: Pipeline, x, y) -> None:
         print(f"{name} CV AUC failed: {exc}")
 
 
+def plot_basic_eda(df: pd.DataFrame, target_col: str, out_dir: str | None, show: bool) -> None:
+    sns.set_theme(style="whitegrid")
+    numeric = df.select_dtypes(include=[np.number])
+
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+
+    if target_col in df.columns:
+        fig, ax = plt.subplots(figsize=(5, 4))
+        sns.countplot(x=target_col, data=df, ax=ax)
+        ax.set_title("Target distribution")
+        fig.tight_layout()
+        if out_dir:
+            fig.savefig(os.path.join(out_dir, "target_distribution.png"), dpi=150)
+        if show:
+            plt.show()
+        plt.close(fig)
+
+    missing = df.isna().sum()
+    missing = missing[missing > 0]
+    if not missing.empty:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        missing.sort_values(ascending=False).plot(kind="bar", ax=ax)
+        ax.set_title("Missing values per column")
+        fig.tight_layout()
+        if out_dir:
+            fig.savefig(os.path.join(out_dir, "missing_values.png"), dpi=150)
+        if show:
+            plt.show()
+        plt.close(fig)
+
+    feature_cols = [c for c in numeric.columns if c != target_col]
+    if feature_cols:
+        df[feature_cols].hist(bins=20, figsize=(12, 8))
+        plt.tight_layout()
+        if out_dir:
+            plt.savefig(os.path.join(out_dir, "feature_histograms.png"), dpi=150)
+        if show:
+            plt.show()
+        plt.close()
+
+    if feature_cols and target_col in df.columns:
+        ncols = 3
+        nrows = int(np.ceil(len(feature_cols) / ncols))
+        fig, axes = plt.subplots(nrows, ncols, figsize=(ncols * 4, nrows * 3), squeeze=False)
+        for idx, col in enumerate(feature_cols):
+            row = idx // ncols
+            col_idx = idx % ncols
+            sns.boxplot(x=target_col, y=col, data=df, ax=axes[row][col_idx])
+        for idx in range(len(feature_cols), nrows * ncols):
+            row = idx // ncols
+            col_idx = idx % ncols
+            axes[row][col_idx].axis("off")
+        fig.tight_layout()
+        if out_dir:
+            fig.savefig(os.path.join(out_dir, "feature_boxplots_by_target.png"), dpi=150)
+        if show:
+            plt.show()
+        plt.close(fig)
+
+    if numeric.shape[1] > 1:
+        corr = numeric.corr()
+        fig, ax = plt.subplots(figsize=(8, 6))
+        sns.heatmap(corr, cmap="coolwarm", center=0, ax=ax)
+        ax.set_title("Feature correlation")
+        fig.tight_layout()
+        if out_dir:
+            fig.savefig(os.path.join(out_dir, "correlation_heatmap.png"), dpi=150)
+        if show:
+            plt.show()
+        plt.close(fig)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Pima Indians Diabetes ML analysis")
     parser.add_argument("--data", default="data/diabetes.csv", help="Path to diabetes.csv")
@@ -110,6 +185,8 @@ def main() -> None:
         default="median",
         help="Missing value imputation strategy: 'mean' or 'median' (default: median)"
     )
+    parser.add_argument("--save-plots", action="store_true", help="Save EDA plots to reports/figures")
+    parser.add_argument("--show-plots", action="store_true", help="Show EDA plots interactively")
     args = parser.parse_args()
 
     df = load_data(args.data)
@@ -130,6 +207,10 @@ def main() -> None:
     missing = df.isna().sum()
     print("c:", type(missing))
     print("Missing values after replacement:\n", missing[missing > 0])
+
+    if args.save_plots or args.show_plots:
+        out_dir = "reports/figures" if args.save_plots else None
+        plot_basic_eda(df, TARGET_COL, out_dir, args.show_plots)
 
     if TARGET_COL not in df.columns:
         raise ValueError(f"Missing target column: {TARGET_COL}")
