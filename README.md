@@ -1,6 +1,6 @@
 # Pima Indians Diabetes - ML Analysis
 
-This repo includes a simple ML analysis script for the Kaggle Pima Indians Diabetes dataset.
+This repo includes a simple ML analysis script for the Kaggle Pima Indians Diabetes dataset. - Mainly for course project
 
 Steps:
 1) Download `diabetes.csv` from Kaggle and place it at `data/diabetes.csv`.
